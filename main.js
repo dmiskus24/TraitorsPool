@@ -12,6 +12,33 @@ const CONTESTANTS = [
   ['Wyatt Gillespie','Designer'],['Xavier Scruggs','MLB Analyst']
 ];
 
+
+const NBC_CAST_URL = 'https://www.nbc.com/nbc-insider/the-traitors-new-blood-cast';
+const CONTESTANT_INFO = {
+  'Abbey Benjamin': { hometown:'Mangham, LA', occupation:'Nurse', superlative:'Most Likely to be Smiling 24/7' },
+  'Abby Lee': { hometown:'Saint Paul, MN', occupation:'Astrophysicist', superlative:'Most Likely to Actually Read One of the Books in the Castle Library' },
+  'Arisa Thomas': { hometown:'Los Angeles, CA', occupation:'Dog Groomer', superlative:'Most Likely to Overpack' },
+  'Ben McDonnell': { hometown:'Granbury, TX', occupation:'Barrel Racer', superlative:'The Social Butterfly' },
+  'Clyde Moser': { hometown:'Charleston, SC', occupation:'Teacher', superlative:'Most Likely to Make a Dramatic Entrance' },
+  'Jay Vinnedge': { hometown:'Oklahoma City, OK', occupation:'Physician', superlative:'Most Likely to Organize a Flashmob' },
+  'Joe Vanella': { hometown:'Wantagh, NY', occupation:'Funeral Director', superlative:'Most Likely to be the Loudest Person in the Room' },
+  'Katie Fites': { hometown:'Jacksonville, FL', occupation:'Marketing Manager', superlative:'Tiniest But Mightiest' },
+  'Kim Daily': { hometown:'Houston, TX', occupation:'Lawyer', superlative:'Most Likely to Break Out in Song or Dance' },
+  'Kriste Lewis': { hometown:'Hattiesburg, MS', occupation:'Realtor', superlative:'Most Likely to Have Treats for Lala Hidden in Her Coat Pocket' },
+  'Logan Smith': { hometown:'Gatlinburg, TN', occupation:'Realtor', superlative:'Most Likely to Sell You Something' },
+  'Madeline Kostopulos': { hometown:'San Diego, CA', occupation:'Construction Manager', superlative:'Most Likely to Make Too Many Jokes' },
+  'Mark Zgoda': { hometown:'Phillipsburg, NJ', occupation:'Personal Trainer', superlative:'Most Likely to Forget They Are on a TV Show' },
+  'Michael Foote': { hometown:'New York, NY', occupation:'Lawyer', superlative:'Most Likely to Stand on Business' },
+  'Morgan Cook': { hometown:'Midland, MI', occupation:'Content Creator', superlative:'Most Likely to Get Lost in the Castle' },
+  'Niyyah Bilal Hayes': { hometown:'Indianapolis, IN', occupation:'Therapist', superlative:'Most Likely to Say What Everyone’s Thinking' },
+  'Shane Beatty': { hometown:'Staten Island, NY', occupation:'Ironworker', superlative:'Tallest in the Castle' },
+  'Sherry Kuehl': { hometown:'Leawood, KS', occupation:'Writer', superlative:'Most Likely to Make You a Character in My Next Book' },
+  'Tomica Adams': { hometown:'Boston, MA', occupation:'Pilot', superlative:'Most Likely to Cry When Laughing' },
+  'Victor Vollbrechthausen': { hometown:'New York, NY', occupation:'Business Executive', superlative:'Biggest Flirt' },
+  'Wyatt Gillespie': { hometown:'Ligonier, PA', occupation:'Designer', superlative:'Most Likely to Laugh in Serious Moments' },
+  'Xavier Scruggs': { hometown:'Wesley Chapel, FL', occupation:'MLB Analyst', superlative:'Most Infectious Smile' }
+};
+
 const SCORE_RULES = {
   survived_episode: ['Survived episode', 1],
   shield: ['Won a shield', 2],
@@ -36,7 +63,7 @@ const supabase = hasSupabase ? createClient(cfg.url, cfg.key) : null;
 const state = {
   tab: 'draft', picks: [], events: [], selectedPlayer: localStorage.getItem('traitors-player') || 'Dave',
   scorecardEpisode: Number(localStorage.getItem('traitors-scorecard-episode') || 1),
-  admin: localStorage.getItem('traitors-admin') === 'true', loading: true, notice: ''
+  admin: localStorage.getItem('traitors-admin') === 'true', loading: true, notice: '', selectedContestant: null
 };
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
@@ -157,7 +184,7 @@ function profileBar(){ return `<section class="profilebar"><label>You are <selec
 function draftView(){
   const pm=pickMap(), cp=currentPick();
   return `<section class="grid draft-layout"><div><div class="section-head"><div><span class="kicker">LIVE DRAFT</span><h2>${cp?`${esc(cp)} is on the clock`:'The draft is complete'}</h2></div>${state.admin&&state.picks.length?'<button id="undo" class="ghost">Undo last pick</button>':''}</div>
-  <div class="contestants">${CONTESTANTS.map(([name,job])=>{ const picked=pm[name]; return `<article class="card ${picked?'picked':''}"><div class="avatar">${name.split(' ').map(x=>x[0]).slice(0,2).join('')}</div><div class="cardbody"><h3>${esc(name)}</h3><p>${esc(job)}</p>${picked?`<span class="drafted">Drafted by ${esc(picked.owner)}</span>`:`<button class="pickbtn" data-pick="${esc(name)}" ${cp!==state.selectedPlayer?'disabled':''}>Draft</button>`}</div></article>`}).join('')}</div></div>
+  <div class="contestants">${CONTESTANTS.map(([name,job])=>{ const picked=pm[name]; return `<article class="card ${picked?'picked':''}"><button class="contestant-info-trigger avatar" data-contestant="${esc(name)}" aria-label="View ${esc(name)} profile">${name.split(' ').map(x=>x[0]).slice(0,2).join('')}</button><div class="cardbody"><button class="contestant-name contestant-info-trigger" data-contestant="${esc(name)}"><h3>${esc(name)}</h3><p>${esc(job)}</p></button>${picked?`<span class="drafted">Drafted by ${esc(picked.owner)}</span>`:`<button class="pickbtn" data-pick="${esc(name)}" ${cp!==state.selectedPlayer?'disabled':''}>Draft</button>`}</div></article>`}).join('')}</div></div>
   <aside class="board"><span class="kicker">DRAFT BOARD</span><h2>Snake order</h2>${DRAFT_ORDER.map((owner,i)=>{const pick=state.picks.find(p=>Number(p.pick_number)===i+1);return `<div class="boardrow ${i===state.picks.length?'current':''}"><span class="pickno">${i+1}</span><span class="owner">${owner}</span><span class="choice">${pick?esc(pick.contestant):'—'}</span></div>`}).join('')}</aside></section>`;
 }
 
@@ -171,12 +198,12 @@ function scorecardView(){
     .reduce((sum,e)=>sum+Number(e.points),0);
   return `<section class="scorecard-page"><div class="section-head"><div><span class="kicker">SELF SCORING</span><h2>${esc(state.selectedPlayer)}'s Episode ${episode} Scorecard</h2><p class="section-copy">Check everything each of your contestants earned in this episode, then save once.</p></div><div class="episode-total"><strong>${episodeTotal}</strong><span>saved pts</span></div></div>
   <form id="scorecard-form" class="scorecard-form"><div class="episode-picker"><label>Episode <input id="scorecard-episode" name="episode" type="number" min="1" value="${episode}"/></label><span>Changing the episode loads that episode's saved checklist.</span></div>
-  ${roster.length?`<div class="scorecards">${roster.map(r=>`<article class="player-scorecard"><div class="scorecard-title"><div><span class="kicker">YOUR PICK</span><h3>${esc(r.contestant)}</h3></div><div class="contestant-points">${pointsFor(r.contestant)}<small>season pts</small></div></div><div class="checklist">${Object.entries(SCORE_RULES).map(([type,[label,pts]])=>{const key=eventKey(r.contestant,type,episode);return `<label class="checkrow"><input data-scorecheck type="checkbox" value="${esc(key)}" ${saved.has(key)?'checked':''}/><span class="checkmark"></span><span class="checklabel">${esc(label)}</span><b>+${pts}</b></label>`}).join('')}</div></article>`).join('')}</div><div class="scorecard-savebar"><div><strong>Episode ${episode} total currently saved: ${episodeTotal} points</strong><span>You can reopen this episode and change the boxes later.</span></div><button class="primary save-scorecard" type="submit">Save my episode points</button></div>`:`<div class="empty-state"><h3>No roster yet</h3><p>Once ${esc(state.selectedPlayer)} has drafted contestants, their episode checklist will appear here.</p></div>`}</form></section>`;
+  ${roster.length?`<div class="scorecards">${roster.map(r=>`<article class="player-scorecard"><div class="scorecard-title"><div><span class="kicker">YOUR PICK</span><button class="contestant-name contestant-info-trigger" type="button" data-contestant="${esc(r.contestant)}"><h3>${esc(r.contestant)}</h3></button></div><div class="contestant-points">${pointsFor(r.contestant)}<small>season pts</small></div></div><div class="checklist">${Object.entries(SCORE_RULES).map(([type,[label,pts]])=>{const key=eventKey(r.contestant,type,episode);return `<label class="checkrow"><input data-scorecheck type="checkbox" value="${esc(key)}" ${saved.has(key)?'checked':''}/><span class="checkmark"></span><span class="checklabel">${esc(label)}</span><b>+${pts}</b></label>`}).join('')}</div></article>`).join('')}</div><div class="scorecard-savebar"><div><strong>Episode ${episode} total currently saved: ${episodeTotal} points</strong><span>You can reopen this episode and change the boxes later.</span></div><button class="primary save-scorecard" type="submit">Save my episode points</button></div>`:`<div class="empty-state"><h3>No roster yet</h3><p>Once ${esc(state.selectedPlayer)} has drafted contestants, their episode checklist will appear here.</p></div>`}</form></section>`;
 }
 
 function leaderboardView(){
   const ranked=[...PLAYERS].sort((a,b)=>totalFor(b)-totalFor(a));
-  return `<section><div class="section-head"><div><span class="kicker">STANDINGS</span><h2>Leaderboard</h2></div></div><div class="leaderboard">${ranked.map((p,i)=>`<article class="leader"><div class="rank">${i+1}</div><div class="leader-main"><h3>${p}</h3><div class="roster">${rosterFor(p).length?rosterFor(p).map(r=>`<span>${esc(r.contestant)} <b>+${pointsFor(r.contestant)}</b></span>`).join(''):'<span>No picks yet</span>'}</div></div><div class="score">${totalFor(p)}<small>PTS</small></div></article>`).join('')}</div></section>`;
+  return `<section><div class="section-head"><div><span class="kicker">STANDINGS</span><h2>Leaderboard</h2></div></div><div class="leaderboard">${ranked.map((p,i)=>`<article class="leader"><div class="rank">${i+1}</div><div class="leader-main"><h3>${p}</h3><div class="roster">${rosterFor(p).length?rosterFor(p).map(r=>`<button class="roster-pill contestant-info-trigger" data-contestant="${esc(r.contestant)}">${esc(r.contestant)} <b>+${pointsFor(r.contestant)}</b></button>`).join(''):'<span>No picks yet</span>'}</div></div><div class="score">${totalFor(p)}<small>PTS</small></div></article>`).join('')}</div></section>`;
 }
 
 function scoringView(){
@@ -186,8 +213,17 @@ function scoringView(){
   <aside>${state.admin?`<form id="score-form" class="scoreform"><span class="kicker">ADMIN</span><h2>Add episode result</h2><label>Contestant<select name="contestant" required>${drafted.map(n=>`<option>${esc(n)}</option>`).join('')}</select></label><label>Scoring event<select name="type">${Object.entries(SCORE_RULES).map(([k,[label,pts]])=>`<option value="${k}">${label} (+${pts})</option>`).join('')}</select></label><div class="twocol"><label>Episode<input name="episode" type="number" min="1" value="1"/></label><label>Quantity<input name="quantity" type="number" min="1" value="1"/></label></div><label>Note (optional)<input name="note" placeholder="e.g. Episode 2 round table"/></label><button class="primary" ${!drafted.length?'disabled':''}>Add points</button><p class="help">Points are calculated automatically from the pool rules.</p></form>`:`<div class="scoreform"><span class="kicker">SCORING</span><h2>Automatic totals</h2><p>Once an admin records what happened in an episode, every drafted contestant's score and every owner's total update automatically.</p><p class="help">Turn on Admin controls above to enter episode results.</p></div>`}</aside></section>`;
 }
 
+
+function contestantModal(){
+  const name=state.selectedContestant;
+  if(!name) return '';
+  const info=CONTESTANT_INFO[name] || {};
+  const initials=name.split(' ').map(x=>x[0]).slice(0,2).join('');
+  return `<div class="modal-backdrop" id="contestant-modal" role="dialog" aria-modal="true" aria-label="${esc(name)} profile"><div class="contestant-modal"><button class="modal-close" id="modal-close" aria-label="Close profile">×</button><div class="profile-avatar">${esc(initials)}</div><span class="kicker">CONTESTANT PROFILE</span><h2>${esc(name)}</h2><div class="profile-grid"><div><span>Hometown</span><strong>${esc(info.hometown || '—')}</strong></div><div><span>Occupation</span><strong>${esc(info.occupation || '—')}</strong></div></div><div class="superlative"><span>Self-declared superlative</span><p>${esc(info.superlative || '—')}</p></div><a class="nbc-link" href="${NBC_CAST_URL}" target="_blank" rel="noopener noreferrer">View the full cast article on NBC ↗</a><p class="profile-source">Cast information sourced from NBC's official New Blood cast feature.</p></div></div>`;
+}
+
 function render(){
-  document.querySelector('#app').innerHTML=`<main>${header()}${nav()}${profileBar()}${state.notice?`<div class="notice">${esc(state.notice)} <button id="dismiss">×</button></div>`:''}${state.loading?'<div class="loading">Entering the castle…</div>':state.tab==='draft'?draftView():state.tab==='scorecard'?scorecardView():state.tab==='leaderboard'?leaderboardView():scoringView()}<footer>Unofficial fan pool · Built for Dave, Jaz, Brody, Bo, Sarah & Mike</footer></main>`;
+  document.querySelector('#app').innerHTML=`<main>${header()}${nav()}${profileBar()}${state.notice?`<div class="notice">${esc(state.notice)} <button id="dismiss">×</button></div>`:''}${state.loading?'<div class="loading">Entering the castle…</div>':state.tab==='draft'?draftView():state.tab==='scorecard'?scorecardView():state.tab==='leaderboard'?leaderboardView():scoringView()}${contestantModal()}<footer>Unofficial fan pool · Built for Dave, Jaz, Brody, Bo, Sarah & Mike</footer></main>`;
   bind();
 }
 function bind(){
@@ -195,6 +231,9 @@ function bind(){
   document.querySelector('#player-select').onchange=e=>{state.selectedPlayer=e.target.value;localStorage.setItem('traitors-player',state.selectedPlayer);render()};
   document.querySelector('#admin-toggle').onchange=e=>{state.admin=e.target.checked;localStorage.setItem('traitors-admin',state.admin);render()};
   document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>makePick(b.dataset.pick));
+  document.querySelectorAll('.contestant-info-trigger').forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();state.selectedContestant=b.dataset.contestant;render()});
+  document.querySelector('#modal-close')?.addEventListener('click',()=>{state.selectedContestant=null;render()});
+  document.querySelector('#contestant-modal')?.addEventListener('click',e=>{if(e.target.id==='contestant-modal'){state.selectedContestant=null;render()}});
   document.querySelector('#undo')?.addEventListener('click',undoLast);
   document.querySelector('#dismiss')?.addEventListener('click',()=>{state.notice='';render()});
   document.querySelector('#score-form')?.addEventListener('submit',e=>{e.preventDefault();addScore(e.target)});
