@@ -63,12 +63,12 @@ const supabase = hasSupabase ? createClient(cfg.url, cfg.key) : null;
 const state = {
   tab: 'draft', picks: [], events: [], selectedPlayer: localStorage.getItem('traitors-player') || 'Dave',
   scorecardEpisode: Number(localStorage.getItem('traitors-scorecard-episode') || 1),
-  admin: localStorage.getItem('traitors-admin') === 'true', loading: true, notice: '', selectedContestant: null
+  admin: localStorage.getItem('traitors-admin') === 'true', loading: true, notice: '', selectedContestant: null, photos: {}
 };
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
-const contestantPhotoPath = name => `/contestants/${slug(name)}.jpg`;
+const contestantPhotoPath = name => state.photos[name] || `/contestants/${slug(name)}.jpg`;
 const avatarMarkup = (name, extraClass='avatar') => {
   const initials = name.split(' ').map(x=>x[0]).slice(0,2).join('');
   return `<div class="${extraClass} photo-frame"><img src="${contestantPhotoPath(name)}" alt="${esc(name)}" loading="lazy" onerror="this.style.display='none';this.parentElement.classList.add('no-photo')"/><span class="avatar-fallback">${esc(initials)}</span></div>`;
@@ -86,6 +86,21 @@ function localLoad(){
 function localSave(){
   localStorage.setItem('traitors-picks', JSON.stringify(state.picks));
   localStorage.setItem('traitors-events', JSON.stringify(state.events));
+}
+
+
+async function loadContestantPhotos(){
+  try{
+    const res = await fetch('/api/cast-photos');
+    if(!res.ok) return;
+    const data = await res.json();
+    if(data && data.photos){
+      state.photos = data.photos;
+      render();
+    }
+  } catch(err){
+    console.warn('NBC contestant photos unavailable; using initials fallback.', err);
+  }
 }
 
 async function loadData(){
@@ -252,4 +267,4 @@ if(hasSupabase){
     .on('postgres_changes',{event:'*',schema:'public',table:'score_events'},()=>loadData())
     .subscribe();
 }
-render(); loadData();
+render(); loadData(); loadContestantPhotos();
