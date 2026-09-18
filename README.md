@@ -65,3 +65,20 @@ Each pool member can open **My Scorecard**, choose the episode, and check the ca
 
 ## Important note about “automatic” episode tracking
 The app automatically **calculates and updates points** once episode outcomes are entered. It does not scrape NBC/Peacock automatically because there is no official public Traitors results API wired into this project. This avoids spoilers, scraping failures, and incorrect scoring.
+
+## Contestant profile popups
+Contestant names and initials are clickable in the Draft Room, My Scorecard, and Leaderboard. The popup shows hometown, occupation, and self-declared superlative, with a link to NBC's official New Blood cast article.
+
+## Contestant photos
+This version supports headshots on contestant cards, leaderboard pills, scorecards, and the profile popup.
+
+To use them:
+1. Put contestant JPG files in `public/contestants/`
+2. Name each file using the contestant's slug, for example:
+   - `abbey-benjamin.jpg`
+   - `abby-lee.jpg`
+   - `arisa-thomas.jpg`
+   - `ben-mcdonnell.jpg`
+3. Redeploy the app.
+
+If a photo file is missing, the app automatically falls back to initials.
